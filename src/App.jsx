@@ -5,7 +5,8 @@ import SearchForm from './components/SearchForm';
 import FileGrid from './components/FileGrid';
 import LoadingIndicator from './components/LoadingIndicator';
 import ErrorMessage from './components/ErrorMessage';
-import { fetchRepositoryFiles } from './services/repoService';
+import TokenModal from './components/TokenModal';
+import { fetchRepositoryFiles, clearStoredTokens } from './services/repoService';
 
 const AppContainer = styled.div`
   max-width: ${({ theme }) => theme.maxWidth};
@@ -64,9 +65,10 @@ const TerraformLogo = styled.div`
 const RepoSourceBadge = styled.div`
   display: inline-flex;
   align-items: center;
-  background-color: ${({ theme, source }) => 
+  background-color: ${({ theme, source, host }) => 
     source === 'github' ? 'rgba(36, 41, 46, 0.8)' : 
-    source === 'gitlab' ? 'rgba(226, 67, 41, 0.8)' : 
+    source === 'gitlab' && host === 'gitlab.com' ? 'rgba(226, 67, 41, 0.8)' : 
+    source === 'gitlab' && host === 'gitlab.techops.com' ? 'rgba(0, 82, 204, 0.8)' : 
     theme.surfaceHover};
   color: white;
   padding: 0.25rem 0.75rem;
@@ -91,12 +93,32 @@ const RepoSourceBadge = styled.div`
   }
 `;
 
+const SettingsButton = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.textSecondary};
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  
+  &:hover {
+    color: ${({ theme }) => theme.text};
+    text-decoration: underline;
+  }
+`;
+
 function App() {
   const [repoUrl, setRepoUrl] = useState('');
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [repoSource, setRepoSource] = useState(null); // 'github' or 'gitlab'
+  const [repoSource, setRepoSource] = useState(null);
+  const [repoHost, setRepoHost] = useState(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [tempRepoUrl, setTempRepoUrl] = useState('');
 
   const handleSearch = async (url) => {
     setRepoUrl(url);
@@ -104,9 +126,17 @@ function App() {
     setError(null);
     
     try {
-      // Determine repo source from URL
-      const repoType = url.toLowerCase().includes('github.com') ? 'github' : 'gitlab';
+      const hostname = new URL(url).hostname.toLowerCase();
+      const repoType = hostname.includes('github') ? 'github' : 'gitlab';
       setRepoSource(repoType);
+      setRepoHost(hostname);
+      
+      if (hostname === 'gitlab.techops.com') {
+        setTempRepoUrl(url);
+        setShowTokenModal(true);
+        setLoading(false);
+        return;
+      }
       
       const fileData = await fetchRepositoryFiles(url);
       console.log(`${repoType} Terraform files fetched:`, fileData);
@@ -117,6 +147,31 @@ function App() {
       setFiles([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTokenSubmit = async (token) => {
+    setShowTokenModal(false);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const fileData = await fetchRepositoryFiles(tempRepoUrl, token);
+      console.log(`Company GitLab Terraform files fetched:`, fileData);
+      setFiles(fileData);
+    } catch (err) {
+      console.error("Error fetching files:", err);
+      setError(err.message || 'Failed to fetch repository files');
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearTokens = () => {
+    if (window.confirm('Are you sure you want to clear all stored access tokens?')) {
+      clearStoredTokens();
+      alert('All tokens have been cleared. You will need to re-enter them on your next request.');
     }
   };
 
@@ -132,11 +187,18 @@ function App() {
           <LoadingIndicator />
         ) : files.length > 0 ? (
           <>
-            {repoSource && (
-              <RepoSourceBadge source={repoSource}>
-                {repoSource === 'github' ? 'GitHub' : 'GitLab'} Repository
-              </RepoSourceBadge>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {repoSource && (
+                <RepoSourceBadge source={repoSource} host={repoHost}>
+                  {repoHost === 'gitlab.techops.com' ? 'Company GitLab' : 
+                   repoHost === 'gitlab.com' ? 'GitLab.com' : 
+                   'GitHub'} Repository
+                </RepoSourceBadge>
+              )}
+              <SettingsButton onClick={handleClearTokens}>
+                Clear Stored Tokens
+              </SettingsButton>
+            </div>
             <FileGrid files={files} />
           </>
         ) : (
@@ -144,9 +206,19 @@ function App() {
             <TerraformLogo />
             <h3>No Terraform Files to Display</h3>
             <p>Enter a GitHub or GitLab repository URL to view its Terraform files (.tf and .tfvars)</p>
+            <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+              Company GitLab: <code>https://gitlab.techops.com/nuveen/application</code>
+            </p>
           </EmptyState>
         )}
       </ContentContainer>
+      
+      {showTokenModal && (
+        <TokenModal 
+          onSubmit={handleTokenSubmit}
+          onCancel={() => setShowTokenModal(false)}
+        />
+      )}
     </AppContainer>
   );
 }
