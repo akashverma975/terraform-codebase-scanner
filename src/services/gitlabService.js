@@ -1,21 +1,6 @@
 import axios from 'axios';
 
-// Extract project ID from GitLab URL
-const extractProjectInfo = (url) => {
-  try {
-    const urlObj = new URL(url);
-    
-    // Remove gitlab.com from the pathname
-    const path = urlObj.pathname.startsWith('/') 
-      ? urlObj.pathname.substring(1) 
-      : urlObj.pathname;
-    
-    // Project path with namespace (username/repo)
-    return path;
-  } catch (error) {
-    throw new Error('Invalid GitLab URL format');
-  }
-};
+const GITLAB_BASE_URL = 'https://gitlab.techopscloud.com/api/v4';
 
 // Check if a file is a Terraform file (.tf or .tfvars)
 const isTerraformFile = (filePath) => {
@@ -23,26 +8,47 @@ const isTerraformFile = (filePath) => {
   return extension === 'tf' || extension === 'tfvars';
 };
 
-// Fetch repository files from GitLab API
-export const fetchRepositoryFiles = async (repoUrl) => {
+// Extract project path from URL
+const extractProjectPath = (url) => {
   try {
-    const projectPath = extractProjectInfo(repoUrl);
-    
-    if (!projectPath) {
-      throw new Error('Could not extract project information from URL');
+    const urlObj = new URL(url);
+    if (urlObj.hostname !== 'gitlab.techopscloud.com') {
+      throw new Error('Invalid GitLab URL. Only gitlab.techopscloud.com is supported.');
     }
-    
-    // URL encode the project path
+    const pathParts = urlObj.pathname.split('/').filter(part => part);
+    if (pathParts.length < 2) {
+      throw new Error('Invalid GitLab project URL');
+    }
+    return pathParts.join('/');
+  } catch (error) {
+    throw new Error(`Could not extract project path: ${error.message}`);
+  }
+};
+
+// Fetch files from GitLab repository
+export const fetchRepositoryFiles = async (repoUrl, token) => {
+  if (!token) {
+    throw new Error('Access token is required for GitLab repositories');
+  }
+
+  try {
+    const projectPath = extractProjectPath(repoUrl);
     const encodedProjectPath = encodeURIComponent(projectPath);
     
-    // First, get the repository tree to find all files
+    console.log(`Fetching GitLab repository: ${projectPath}`);
+    
+    // Set up headers
+    const headers = { 'PRIVATE-TOKEN': token };
+    
+    // Get the repository tree
     const treeResponse = await axios.get(
-      `https://gitlab.com/api/v4/projects/${encodedProjectPath}/repository/tree`,
+      `${GITLAB_BASE_URL}/projects/${encodedProjectPath}/repository/tree`,
       {
         params: {
           recursive: true,
           per_page: 100
-        }
+        },
+        headers
       }
     );
 
@@ -50,96 +56,82 @@ export const fetchRepositoryFiles = async (repoUrl) => {
       throw new Error('Invalid response from GitLab API');
     }
 
-    // Filter out directories and keep only Terraform files (.tf and .tfvars)
-    const files = treeResponse.data.filter(item => 
+    // Filter for Terraform files only
+    const terraformFiles = treeResponse.data.filter(item => 
       item.type === 'blob' && isTerraformFile(item.path)
     );
     
-    if (files.length === 0) {
+    if (terraformFiles.length === 0) {
       throw new Error('No Terraform files (.tf or .tfvars) found in this repository');
     }
 
+    // Try different branches
+    const tryBranches = ['main', 'master', 'develop', 'development'];
+    
     // Fetch content for each Terraform file
     const fileContents = await Promise.all(
-      files.map(async (file) => {
-        try {
-          const fileResponse = await axios.get(
-            `https://gitlab.com/api/v4/projects/${encodedProjectPath}/repository/files/${encodeURIComponent(file.path)}`,
-            {
-              params: {
-                ref: 'main' // Try main first
-              }
-            }
-          ).catch(() => {
-            // If main branch doesn't exist, try master
-            return axios.get(
-              `https://gitlab.com/api/v4/projects/${encodedProjectPath}/repository/files/${encodeURIComponent(file.path)}`,
+      terraformFiles.map(async (file) => {
+        // Try each branch until we get a successful response
+        for (const branch of tryBranches) {
+          try {
+            const fileResponse = await axios.get(
+              `${GITLAB_BASE_URL}/projects/${encodedProjectPath}/repository/files/${encodeURIComponent(file.path)}`,
               {
-                params: {
-                  ref: 'master'
-                }
+                params: { ref: branch },
+                headers
               }
             );
-          });
-          
-          if (fileResponse.data && fileResponse.data.content) {
-            // GitLab returns base64 encoded content
-            let content;
-            try {
-              // Use window.atob for browser environments
-              content = window.atob(fileResponse.data.content);
-            } catch (e) {
-              // Fallback to Buffer for Node.js environments or if atob fails
-              content = Buffer.from(fileResponse.data.content, 'base64').toString('utf-8');
+            
+            if (fileResponse.data && fileResponse.data.content) {
+              // GitLab returns base64 encoded content
+              const content = Buffer.from(fileResponse.data.content, 'base64').toString('utf-8');
+              
+              return {
+                ...file,
+                content,
+                size: fileResponse.data.size || 0,
+                encoding: fileResponse.data.encoding
+              };
             }
             
-            return {
-              ...file,
-              content,
-              size: fileResponse.data.size || 0,
-              encoding: fileResponse.data.encoding
-            };
+            // If we got here, we found the file but couldn't get content
+            return file;
+          } catch (error) {
+            // If this is the last branch to try, and we still have an error
+            if (branch === tryBranches[tryBranches.length - 1]) {
+              console.error(`Error fetching file ${file.path}:`, error);
+              return {
+                ...file,
+                content: `# Error loading file: ${error.message}`,
+                error: true
+              };
+            }
+            // Otherwise continue to the next branch
           }
-          
-          return file;
-        } catch (error) {
-          console.error(`Error fetching file ${file.path}:`, error);
-          return {
-            ...file,
-            content: `// Error loading file: ${error.message}`,
-            error: true
-          };
         }
+        
+        // If we get here, all branches failed
+        return {
+          ...file,
+          content: `# Could not find file in any branch`,
+          error: true
+        };
       })
     );
     
     return fileContents;
   } catch (error) {
-    console.error("API Error:", error);
+    console.error('GitLab API Error:', error);
+    
     if (error.response) {
       if (error.response.status === 404) {
-        throw new Error('Repository not found. Make sure the URL is correct and the repository is public.');
+        throw new Error('Repository not found. Make sure the URL is correct and you have access to it.');
       } else if (error.response.status === 401) {
-        throw new Error('Authentication required. This repository might be private.');
+        throw new Error('Authentication failed. Please provide a valid access token.');
       } else {
         throw new Error(`GitLab API error: ${error.response.data.message || error.response.statusText}`);
       }
     }
     throw error;
   }
-};
-
-// Check if a file is likely binary based on extension
-const isBinaryFile = (filePath) => {
-  const binaryExtensions = [
-    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'ico', 'webp', 'tiff',
-    'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
-    'zip', 'rar', 'tar', 'gz', '7z', 'bz2',
-    'exe', 'dll', 'so', 'dylib', 'bin', 'dat',
-    'mp3', 'mp4', 'avi', 'mov', 'wmv', 'flv', 'wav', 'ogg',
-    'ttf', 'otf', 'woff', 'woff2', 'eot'
-  ];
-  
-  const extension = filePath.split('.').pop().toLowerCase();
-  return binaryExtensions.includes(extension);
 };

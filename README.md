@@ -1,33 +1,32 @@
-# Terraform File Viewer
+# Company Terraform Viewer
 
-A modern React application for viewing Terraform files (.tf and .tfvars) from GitHub, GitLab, and self-hosted GitLab repositories.
+A modern React application for viewing Terraform files (.tf and .tfvars) from your company's GitLab repositories.
 
 ## Features
 
-- Support for multiple Git platforms:
-  - GitHub.com
-  - GitLab.com
-  - Self-hosted GitLab (gitlab.techops.com)
-- Support for complex GitLab project paths (groups/subgroups)
+- Exclusive support for your company's GitLab instance (gitlab.techopscloud.com)
+- Support for any project path within your GitLab instance
 - Elegant dark-themed UI
 - Syntax highlighting for Terraform files
 - Responsive design for all device sizes
-- Secure token handling for private repositories
+- Secure token handling for authentication
 
-## Company GitLab Integration
+## GitLab Integration
 
-This application supports your company's self-hosted GitLab instance at `gitlab.techops.com`. It works with complex project paths like:
+This application is designed to work exclusively with your company's GitLab instance at `gitlab.techopscloud.com`. It supports any project path within this domain, such as:
 
 ```
-https://gitlab.techops.com/nuveen/application
-https://gitlab.techops.com/group/subgroup/project
+https://gitlab.techopscloud.com/your-group/your-project
+https://gitlab.techopscloud.com/team-a/subgroup/project
 ```
 
-When accessing company GitLab repositories:
+## Authentication
+
+When accessing GitLab repositories:
 
 1. You will be prompted to enter a personal access token
 2. Create a personal access token in your GitLab instance:
-   - Go to `gitlab.techops.com/-/profile/personal_access_tokens`
+   - Go to `gitlab.techopscloud.com/-/profile/personal_access_tokens`
    - Create a token with `read_api` and `read_repository` scopes
    - Copy the generated token
 3. Enter the token when prompted by the application
@@ -62,14 +61,23 @@ npm run preview
 
 ## Deployment
 
-See the deployment guides for instructions on deploying to:
-- Amazon S3
-- GitHub Pages
-- Other static hosting services
+See the deployment guides for instructions on deploying to your preferred hosting solution.
 
 ## Security Considerations
 
-- Access tokens for company GitLab are not stored and must be provided for each request
-- No data is sent to any third-party servers
-- All API requests are made directly from your browser to the Git providers
+- Access tokens are not stored and must be provided for each request
+- All API requests are made directly from the browser to your GitLab instance
 - The application does not track or store any usage data
+- Ensure the application is deployed on a secure (HTTPS) connection
+
+## Customization
+
+You may need to customize the following:
+
+- GitLab instance URL in `src/services/gitlabService.js` (currently set to gitlab.techopscloud.com)
+- Company-specific branding or colors in the theme
+- Any company-specific GitLab API endpoints or parameters
+
+## Support
+
+For issues related to this application, please contact your IT department or the designated maintainer of this tool.

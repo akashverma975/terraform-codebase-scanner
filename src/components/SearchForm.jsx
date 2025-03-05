@@ -103,15 +103,6 @@ const LoadingSpinner = styled.span`
   }
 `;
 
-const ExampleLinks = styled.div`
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: ${({ theme }) => theme.textSecondary};
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-`;
-
 const ExampleLink = styled.button`
   background: none;
   border: none;
@@ -120,6 +111,7 @@ const ExampleLink = styled.button`
   cursor: pointer;
   font-size: 0.8rem;
   text-decoration: underline;
+  margin-top: 0.5rem;
   
   &:hover {
     color: ${({ theme }) => theme.primaryHover};
@@ -136,8 +128,8 @@ const SearchForm = ({ onSearch, isLoading }) => {
     }
   };
 
-  const handleExampleClick = (exampleUrl) => {
-    setUrl(exampleUrl);
+  const handleExampleClick = () => {
+    setUrl('https://gitlab.techopscloud.com/your-group/your-project');
   };
 
   return (
@@ -147,7 +139,7 @@ const SearchForm = ({ onSearch, isLoading }) => {
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Enter GitHub, GitLab, or Company GitLab repository URL"
+          placeholder="Enter GitLab repository URL (e.g., https://gitlab.techopscloud.com/your-group/your-project)"
           aria-label="Repository URL"
           disabled={isLoading}
         />
@@ -163,18 +155,9 @@ const SearchForm = ({ onSearch, isLoading }) => {
           )}
         </Button>
       </FormContainer>
-      <ExampleLinks>
-        Examples:
-        <ExampleLink onClick={() => handleExampleClick('https://github.com/hashicorp/terraform')}>
-          GitHub
-        </ExampleLink>
-        <ExampleLink onClick={() => handleExampleClick('https://gitlab.com/gitlab-org/terraform-images')}>
-          GitLab.com
-        </ExampleLink>
-        <ExampleLink onClick={() => handleExampleClick('https://gitlab.techops.com/nuveen/application')}>
-          Company GitLab
-        </ExampleLink>
-      </ExampleLinks>
+      <ExampleLink onClick={handleExampleClick}>
+        Use example: https://gitlab.techopscloud.com/your-group/your-project
+      </ExampleLink>
     </>
   );
 };
