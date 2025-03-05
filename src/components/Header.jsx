@@ -88,7 +88,7 @@ const Header = () => {
     <HeaderContainer>
       <Logo>
         <TerraformLogo />
-        <Title>Convert AWS 1.0 TF modules to AWS 2.0</Title>
+        <Title>Terraform File Viewer</Title>
       </Logo>
       <Subtitle>
         Explore and view Terraform files (.tf and .tfvars) from any GitHub or GitLab repository

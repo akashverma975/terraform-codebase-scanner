@@ -103,6 +103,29 @@ const LoadingSpinner = styled.span`
   }
 `;
 
+const ExampleLinks = styled.div`
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: ${({ theme }) => theme.textSecondary};
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+`;
+
+const ExampleLink = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.primary};
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  
+  &:hover {
+    color: ${({ theme }) => theme.primaryHover};
+  }
+`;
+
 const SearchForm = ({ onSearch, isLoading }) => {
   const [url, setUrl] = useState('');
 
@@ -113,28 +136,46 @@ const SearchForm = ({ onSearch, isLoading }) => {
     }
   };
 
+  const handleExampleClick = (exampleUrl) => {
+    setUrl(exampleUrl);
+  };
+
   return (
-    <FormContainer onSubmit={handleSubmit}>
-      <Input
-        type="text"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="Enter GitHub or GitLab repository URL (e.g., https://github.com/username/repo)"
-        aria-label="Repository URL"
-        disabled={isLoading}
-      />
-      <Button type="submit" disabled={isLoading || !url.trim()}>
-        {isLoading ? (
-          <>
-            <LoadingSpinner /> Loading
-          </>
-        ) : (
-          <>
-            <SearchIcon /> Search
-          </>
-        )}
-      </Button>
-    </FormContainer>
+    <>
+      <FormContainer onSubmit={handleSubmit}>
+        <Input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Enter GitHub, GitLab, or Company GitLab repository URL"
+          aria-label="Repository URL"
+          disabled={isLoading}
+        />
+        <Button type="submit" disabled={isLoading || !url.trim()}>
+          {isLoading ? (
+            <>
+              <LoadingSpinner /> Loading
+            </>
+          ) : (
+            <>
+              <SearchIcon /> Search
+            </>
+          )}
+        </Button>
+      </FormContainer>
+      <ExampleLinks>
+        Examples:
+        <ExampleLink onClick={() => handleExampleClick('https://github.com/hashicorp/terraform')}>
+          GitHub
+        </ExampleLink>
+        <ExampleLink onClick={() => handleExampleClick('https://gitlab.com/gitlab-org/terraform-images')}>
+          GitLab.com
+        </ExampleLink>
+        <ExampleLink onClick={() => handleExampleClick('https://gitlab.techops.com/nuveen/application')}>
+          Company GitLab
+        </ExampleLink>
+      </ExampleLinks>
+    </>
   );
 };
 
